@@ -577,6 +577,8 @@ static void hid_report_callback(void *context, IOReturn result, void *sender,
 	rpt->next = NULL;
 
 	printf("####Got a report\n");
+	printf("Report delivered from Thread id: %lu\n", (unsigned long)pthread_self());
+	printf("device: %p\n", dev);
 
 	/* Lock this section */
 	pthread_mutex_lock(&dev->mutex);
@@ -625,7 +627,10 @@ static void perform_signal_callback(void *context)
 static void *read_thread(void *param)
 {
 	hid_device *dev = param;
-
+	
+	printf("Read thread started. Thread id: %lu\n", (unsigned long)pthread_self());
+	printf("Device: %p\n", dev);
+	
 	/* Move the device's run loop to this thread. */
 	IOHIDDeviceScheduleWithRunLoop(dev->device_handle, CFRunLoopGetCurrent(), dev->run_loop_mode);
 
