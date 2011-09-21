@@ -109,6 +109,7 @@ struct hid_device_ {
 	CFRunLoopRef run_loop;
 	CFRunLoopSourceRef source;
 	uint8_t *input_report_buf;
+	CFIndex max_input_report_len;
 	struct input_report *input_reports;
 
 	pthread_t thread;
@@ -719,15 +720,14 @@ hid_device * HID_API_EXPORT hid_open_path(const char *path)
 			IOReturn ret = IOHIDDeviceOpen(os_dev, kIOHIDOptionsTypeNone);
 			if (ret == kIOReturnSuccess) {
 				char str[32];
-				CFIndex max_input_report_len;
 
 				free(device_array);
 				CFRelease(device_set);
 				dev->device_handle = os_dev;
 				
 				/* Create the buffers for receiving data */
-				max_input_report_len = (CFIndex) get_max_report_length(os_dev);
-				dev->input_report_buf = calloc(max_input_report_len, sizeof(uint8_t));
+				dev->max_input_report_len = (CFIndex) get_max_report_length(os_dev);
+				dev->input_report_buf = calloc(dev->max_input_report_len, sizeof(uint8_t));
 				
 				/* Create the Run Loop Mode for this device.
 				   printing the reference seems to work. */
@@ -736,9 +736,8 @@ hid_device * HID_API_EXPORT hid_open_path(const char *path)
 					CFStringCreateWithCString(NULL, str, kCFStringEncodingASCII);
 				
 				/* Attach the device to a Run Loop */
-				IOHIDDeviceScheduleWithRunLoop(os_dev, CFRunLoopGetCurrent(), dev->run_loop_mode);
 				IOHIDDeviceRegisterInputReportCallback(
-					os_dev, dev->input_report_buf, max_input_report_len,
+					os_dev, dev->input_report_buf, dev->max_input_report_len,
 					&hid_report_callback, dev);
 				IOHIDManagerRegisterDeviceRemovalCallback(hid_mgr, hid_device_removal_callback, NULL);
 				
@@ -966,13 +965,14 @@ void HID_API_EXPORT hid_close(hid_device *dev)
 
 	printf("close called\n");
 	
-#if 0
+#if 1
 	// TODO: Figure out if we need this.
 	/* Disconnect the report callback before close. */
 	IOHIDDeviceRegisterInputReportCallback(
-		dev->device_handle, dev->input_report_buf, 0,
-		NULL, NULL);
-	IOHIDManagerRegisterDeviceRemovalCallback(hid_mgr, NULL, NULL);
+		dev->device_handle, dev->input_report_buf, dev->max_input_report_len,
+		NULL, dev);
+	IOHIDManagerRegisterDeviceRemovalCallback(hid_mgr, NULL, dev);
+	IOHIDDeviceUnscheduleFromRunLoop(dev->device_handle, dev->run_loop, dev->run_loop_mode);
 #endif
 
 	/* Cause read_thread() to stop. */
